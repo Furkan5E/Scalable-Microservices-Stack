@@ -2,21 +2,27 @@ version: '3.9'
 services:
   # Flask application
   web:
-    build: ./web # build from the Dockerfile in ./web/
+    build: 
+      context: .
+      dockerfile: web/dockerfile
     expose:
-      - '5000' # expose to other containers only (not the host)
+      - '5000'
+    env_file:
+      - .env
     environment:
       - APP_VERSION=2.0
     depends_on:
       redis:
         condition: service_healthy
+      db:
+        condition: service_healthy
     restart: unless-stopped
 
   # Redis cache
   redis:
-    image: redis:7-alpine # use official image, no custom Dockerfile needed
+    image: redis:7-alpine 
     volumes:
-      - redis_data:/data # persist Redis data across container restarts
+      - redis_data:/data 
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
@@ -28,19 +34,25 @@ services:
   nginx:
     image: nginx:alpine
     ports:
-      - '8080:80' # only nginx is exposed to the host on port 8080
+      - '8080:80' 
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro # mount config file
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro 
     depends_on:
       - web
     restart: unless-stopped
 
+  # PostgreSQL Database
   db:
     image: postgres:16-alpine
-    environment:
-      POSTGRES_PASSWORD: password
+    env_file:
+      - .env # Pulls secure passwords from your .env file
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 # Named volumes
 volumes:
