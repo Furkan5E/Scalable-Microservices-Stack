@@ -4,14 +4,16 @@ import socket
 import psycopg2
 from datetime import datetime
 import time
+import os
 
 app = Flask(__name__)
 
 REDIS_HOST = 'redis'
 DB_HOST = 'db'
 DB_NAME = 'postgres'
-DB_USER = 'postgres'
-DB_PASS = 'password'
+
+DB_USER = os.environ.get('POSTGRES_USER', 'postgres')
+DB_PASS = os.environ.get('POSTGRES_PASSWORD', 'password')
 
 def get_redis():
     return redis.Redis(host=REDIS_HOST, port=6379)
@@ -49,8 +51,6 @@ def init_db():
     cur.close()
     conn.close()
 
-init_db()
-
 @app.route('/')
 def index():
     # 1. Increment Redis counter
@@ -73,7 +73,7 @@ def index():
     conn.close()
 
     return jsonify({
-        'message': '🐳 Hello from the Scaled Full Stack!',
+        'message': 'Hello from the Scaled Full Stack!',
         'hostname': hostname,
         'redis_visits': int(hits),
         'db_status': 'Recorded in Postgres'
@@ -101,4 +101,5 @@ def health():
     return jsonify({'status': 'ok'}), 200
 
 if __name__ == '__main__':
+    init_db()
     app.run(host='0.0.0.0', port=5000)
