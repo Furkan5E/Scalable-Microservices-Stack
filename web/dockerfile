@@ -2,10 +2,14 @@ FROM python:3.9-slim
 
 WORKDIR /app
 
-COPY . .
+RUN pip install --no-cache-dir uv
 
-RUN pip install --no-cache-dir flask redis psycopg2-binary
+COPY pyproject.toml uv.lock ./
+
+RUN uv sync --frozen
+
+COPY . .
 
 EXPOSE 5000
 
-CMD ["python", "app.py"]
+CMD ["uv", "run", "python", "app.py"]
