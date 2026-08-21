@@ -1,0 +1,12 @@
+[project]
+name = "scalable-microservices-stack"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "flask>=3.1.3",
+    "gunicorn>=26.1.0",
+    "psycopg2>=2.9.12",
+    "redis>=8.1.0",
+]
