@@ -1,0 +1,22 @@
+# Git and environments
+.git/
+.gitignore
+.venv/
+.env
+
+# Python cache and compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+
+# Testing
+.pytest_cache/
+tests/
+
+# Documentation
+README.md
+LICENSE
