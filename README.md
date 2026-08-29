@@ -9,6 +9,7 @@
 ![Redis](https://img.shields.io/badge/Redis-Cache-DC382D?logo=redis&logoColor=white)
 ![Nginx](https://img.shields.io/badge/Nginx-Proxy-009639?logo=nginx&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
+[![Test Suite](https://github.com/Furkan5E/scalable-microservices-stack/actions/workflows/test.yaml/badge.svg)](https://github.com/Furkan5E/scalable-microservices-stack/actions/workflows/test.yaml)
 
 A containerised, production ready microservices architecture demonstrating modern deployment practices, caching, persistent data storage, and strict dependency management.
 
