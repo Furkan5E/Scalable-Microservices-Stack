@@ -27,4 +27,4 @@ jobs:
         run: uv sync
 
       - name: Run test suite
-        run: uv run python -m pytest web/tests
+        run: uv run python -m pytest web/tests history/tests
