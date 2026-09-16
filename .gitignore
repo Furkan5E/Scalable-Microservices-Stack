@@ -10,3 +10,4 @@ wheels/
 .venv
 
 .env
+k8s/secrets.yaml
