@@ -1,22 +1,40 @@
 version: '3.9'
 services:
-  # Flask application
+  # Flask gateway: public API, owns the Redis hit counter
   web:
-    build: 
+    build:
       context: .
       dockerfile: web/dockerfile
     expose:
       - '5000'
-    env_file:
-      - .env
     environment:
       - APP_VERSION=2.0
+      - HISTORY_SERVICE_URL=http://history:5000
     depends_on:
       redis:
         condition: service_healthy
+      history:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Flask history service: owns Postgres, records and serves visit history
+  history:
+    build:
+      context: .
+      dockerfile: history/dockerfile
+    expose:
+      - '5000'
+    env_file:
+      - .env
+    depends_on:
       db:
         condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   # Redis cache
   redis:
