@@ -16,6 +16,13 @@ spec:
         image: redis:7-alpine
         ports:
         - containerPort: 6379
+        resources:
+          requests:
+            cpu: 25m
+            memory: 32Mi
+          limits:
+            cpu: 100m
+            memory: 64Mi
         readinessProbe:
           exec:
             command: ["redis-cli", "ping"]
