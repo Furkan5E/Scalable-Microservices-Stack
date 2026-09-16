@@ -11,18 +11,21 @@
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
 [![Test Suite](https://github.com/Furkan5E/scalable-microservices-stack/actions/workflows/test.yaml/badge.svg)](https://github.com/Furkan5E/scalable-microservices-stack/actions/workflows/test.yaml)
 
-A containerised, production ready microservices architecture demonstrating modern deployment practices, caching, persistent data storage, and strict dependency management.
+A containerised microservices architecture demonstrating service decomposition, inter-service communication, caching, persistent data storage, and strict dependency management.
 
 ## Architecture
 
-The application is composed of four core services:
+The application is composed of two independently deployable Flask services plus supporting infrastructure:
 
 | Service | Technology | Purpose |
 |---|---|---|
-| **Web API** | Flask | Handles application logic and API requests |
-| **Reverse Proxy** | Nginx | Receives incoming traffic and forwards requests to the API |
+| **Web API** | Flask | Public-facing gateway. Handles requests, tracks visit counts in Redis, and calls the History API over HTTP |
+| **History API** | Flask | Internal service. Owns PostgreSQL exclusively; records and serves visit history on behalf of the Web API |
+| **Reverse Proxy** | Nginx | Receives incoming traffic and forwards requests to the Web API |
 | **Cache** | Redis | Stores frequently accessed data in memory to reduce database load |
-| **Database** | PostgreSQL | Provides persistent relational data storage |
+| **Database** | PostgreSQL | Provides persistent relational data storage, accessed only by the History API |
+
+The Web API never touches Postgres directly — it calls the History API's internal REST endpoints (`POST /visits`, `GET /visits`). This is the actual service boundary in the stack: two services with their own codebases, dependencies, containers, and failure modes, communicating over the network rather than sharing a database.
 
 ## Key Features
 *   **Containerised:** Fully isolated services deployed using Docker Compose or Kubernetes.
@@ -64,6 +67,7 @@ kubectl apply -f k8s/secrets.yaml
 kubectl apply -f k8s/nginx-config.yaml
 kubectl apply -f k8s/postgres.yaml
 kubectl apply -f k8s/redis.yaml
+kubectl apply -f k8s/history.yaml
 kubectl apply -f k8s/web.yaml
 kubectl apply -f k8s/nginx.yaml
 ```
@@ -72,11 +76,20 @@ If you are using a local kind cluster, open a tunnel to the reverse proxy.
 kubectl port-forward service/nginx 8080:8080
 ```
 ## API Endpoints
-`GET /` - Root endpoint. Logs your hostname and timestamp to PostgreSQL and tracks your visit count in Redis.
 
-`GET /health` - System diagnostic endpoint ensuring the API is responsive.
+### Web API (public, via Nginx)
+`GET /` - Root endpoint. Tracks your visit count in Redis and reports the visit to the History API for persistence.
 
-`GET /history` - Retrieves the full JSON log of all recorded visits from the database.
+`GET /health` - System diagnostic endpoint ensuring the Web API is responsive.
+
+`GET /history` - Proxies the History API and returns the last 10 recorded visits.
+
+### History API (internal only)
+`GET /health` - System diagnostic endpoint ensuring the History API is responsive.
+
+`POST /visits` - Records a single visit `{"hostname": ..., "timestamp": ...}` in PostgreSQL.
+
+`GET /visits` - Returns the last 10 visits stored in PostgreSQL.
 
 ## Testing
 To run the automated test suite locally using uv:
