@@ -61,6 +61,11 @@ To stop the application
 docker compose down
 ```
 ## Deploy with Kubernetes
+Copy the secrets template and set your own credentials (`k8s/secrets.yaml` is gitignored, so real credentials never get committed):
+```bash
+cp k8s/secrets.yaml.example k8s/secrets.yaml
+# edit k8s/secrets.yaml with your own POSTGRES_PASSWORD
+```
 Apply the infrastructure manifests to local cluster
 ```bash
 kubectl apply -f k8s/secrets.yaml
