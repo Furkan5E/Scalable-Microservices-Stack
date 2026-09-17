@@ -40,3 +40,21 @@ def test_record_visit(client, mocker):
     response = client.post('/visits', json={'hostname': 'test_host', 'timestamp': '2026-08-21T21:00:00'})
     assert response.status_code == 201
     mock_cursor.execute.assert_called_once()
+
+
+@pytest.mark.parametrize('payload', [
+    {},
+    {'hostname': 'test_host'},
+    {'timestamp': '2026-08-21T21:00:00'},
+    {'hostname': '', 'timestamp': '2026-08-21T21:00:00'},
+    {'hostname': 123, 'timestamp': '2026-08-21T21:00:00'},
+    {'hostname': 'x' * 51, 'timestamp': '2026-08-21T21:00:00'},
+    {'hostname': 'test_host', 'timestamp': 'not-a-date'},
+])
+def test_record_visit_rejects_invalid_payloads(client, mocker, payload):
+    """Test that POST /visits returns 400 without touching the database for bad input."""
+    mock_get_conn = mocker.patch('service.get_db_connection')
+
+    response = client.post('/visits', json=payload)
+    assert response.status_code == 400
+    mock_get_conn.assert_not_called()
