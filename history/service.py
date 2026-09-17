@@ -1,4 +1,5 @@
 from flask import Flask, jsonify, request
+from datetime import datetime
 import psycopg2
 import time
 import os
@@ -10,6 +11,8 @@ DB_NAME = 'postgres'
 
 DB_USER = os.environ.get('POSTGRES_USER', 'postgres')
 DB_PASS = os.environ.get('POSTGRES_PASSWORD', 'password')
+
+MAX_HOSTNAME_LENGTH = 50
 
 def get_db_connection():
     """Connects to Postgres with a simple retry loop in case the DB is still booting."""
@@ -47,12 +50,26 @@ def init_db():
 @app.route('/visits', methods=['POST'])
 def record_visit():
     """Records a single visit reported by the web service."""
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
+    hostname = data.get('hostname')
+    timestamp = data.get('timestamp')
+
+    if not isinstance(hostname, str) or not hostname:
+        return jsonify({'error': 'hostname is required and must be a non-empty string'}), 400
+    if len(hostname) > MAX_HOSTNAME_LENGTH:
+        return jsonify({'error': f'hostname must be {MAX_HOSTNAME_LENGTH} characters or fewer'}), 400
+    if not isinstance(timestamp, str) or not timestamp:
+        return jsonify({'error': 'timestamp is required and must be a non-empty string'}), 400
+    try:
+        datetime.fromisoformat(timestamp)
+    except ValueError:
+        return jsonify({'error': 'timestamp must be an ISO 8601 string'}), 400
+
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(
         'INSERT INTO visit_history (hostname, visit_time) VALUES (%s, %s)',
-        (data['hostname'], data['timestamp'])
+        (hostname, timestamp)
     )
     conn.commit()
     cur.close()
