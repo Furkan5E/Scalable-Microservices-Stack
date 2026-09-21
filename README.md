@@ -17,6 +17,15 @@ A containerised microservices architecture demonstrating service decomposition, 
 
 The application is composed of two independently deployable Flask services plus supporting infrastructure:
 
+```mermaid
+flowchart LR
+    Client(["Client"]) --> Nginx["Nginx\nReverse Proxy"]
+    Nginx --> Web["Web API\n(Flask)"]
+    Web --> Redis[("Redis\nhit counter")]
+    Web -- "POST /visits\nGET /visits" --> History["History API\n(Flask, internal only)"]
+    History --> Postgres[("PostgreSQL\nvisit_history")]
+```
+
 | Service | Technology | Purpose |
 |---|---|---|
 | **Web API** | Flask | Public-facing gateway. Handles requests, tracks visit counts in Redis, and calls the History API over HTTP |
@@ -73,6 +82,7 @@ kubectl apply -f k8s/nginx-config.yaml
 kubectl apply -f k8s/postgres.yaml
 kubectl apply -f k8s/redis.yaml
 kubectl apply -f k8s/history.yaml
+kubectl apply -f k8s/history-networkpolicy.yaml
 kubectl apply -f k8s/web.yaml
 kubectl apply -f k8s/nginx.yaml
 ```
