@@ -17,15 +17,6 @@ A containerised microservices architecture demonstrating service decomposition, 
 
 The application is composed of two independently deployable Flask services plus supporting infrastructure:
 
-```mermaid
-flowchart LR
-    Client(["Client"]) --> Nginx["Nginx\nReverse Proxy"]
-    Nginx --> Web["Web API\n(Flask)"]
-    Web --> Redis[("Redis\nhit counter")]
-    Web -- "POST /visits\nGET /visits" --> History["History API\n(Flask, internal only)"]
-    History --> Postgres[("PostgreSQL\nvisit_history")]
-```
-
 | Service | Technology | Purpose |
 |---|---|---|
 | **Web API** | Flask | Public-facing gateway. Handles requests, tracks visit counts in Redis, and calls the History API over HTTP |
@@ -34,7 +25,16 @@ flowchart LR
 | **Cache** | Redis | Stores frequently accessed data in memory to reduce database load |
 | **Database** | PostgreSQL | Provides persistent relational data storage, accessed only by the History API |
 
-The Web API never touches Postgres directly — it calls the History API's internal REST endpoints (`POST /visits`, `GET /visits`). This is the actual service boundary in the stack: two services with their own codebases, dependencies, containers, and failure modes, communicating over the network rather than sharing a database.
+The Web API never touches Postgres directly, it calls the History API's internal REST endpoints (`POST /visits`, `GET /visits`). This is the actual service boundary in the stack: two services with their own codebases, dependencies, containers, and failure modes, communicating over the network rather than sharing a database.
+
+```mermaid
+flowchart LR
+    Client(["Client"]) --> Nginx["Nginx\nReverse Proxy"]
+    Nginx --> Web["Web API\n(Flask)"]
+    Web --> Redis[("Redis\nhit counter")]
+    Web -- "POST /visits\nGET /visits" --> History["History API\n(Flask, internal only)"]
+    History --> Postgres[("PostgreSQL\nvisit_history")]
+```
 
 ## Key Features
 *   **Containerised:** Fully isolated services deployed using Docker Compose or Kubernetes.
