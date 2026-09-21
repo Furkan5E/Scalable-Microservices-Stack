@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: history-allow-web-only
+spec:
+  # Applies to the history pods; once selected, any ingress not listed below is denied.
+  podSelector:
+    matchLabels:
+      app: history
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: web
+    ports:
+    - protocol: TCP
+      port: 5000
