@@ -6,10 +6,12 @@ RUN pip install --no-cache-dir uv
 
 COPY pyproject.toml uv.lock ./
 
-RUN uv sync --frozen
+RUN uv sync --frozen --no-dev
+
+ENV PATH="/app/.venv/bin:$PATH"
 
 COPY web/ ./
 
 EXPOSE 5000
 
-CMD ["uv", "run", "python", "app.py"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--preload", "app:app"]
