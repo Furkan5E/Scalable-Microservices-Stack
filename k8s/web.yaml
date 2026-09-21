@@ -25,10 +25,10 @@ spec:
         resources:
           requests:
             cpu: 50m
-            memory: 64Mi
+            memory: 96Mi
           limits:
             cpu: 250m
-            memory: 128Mi
+            memory: 256Mi # 2 gunicorn workers peak ~100Mi under load; 128Mi was OOM-killed at shutdown
         readinessProbe:
           httpGet:
             path: /health
