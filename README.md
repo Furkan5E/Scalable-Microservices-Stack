@@ -19,10 +19,10 @@ The application is composed of two independently deployable Flask services plus 
 
 | Service | Technology | Purpose |
 |---|---|---|
-| **Web API** | Flask | Public-facing gateway. Handles requests, tracks visit counts in Redis, and calls the History API over HTTP |
+| **Web API** | Flask | Public-facing gateway. Handles requests, tracks visit counts in Redis, caches history reads, and calls the History API over HTTP |
 | **History API** | Flask | Internal service. Owns PostgreSQL exclusively; records and serves visit history on behalf of the Web API |
 | **Reverse Proxy** | Nginx | Receives incoming traffic and forwards requests to the Web API |
-| **Cache** | Redis | Stores frequently accessed data in memory to reduce database load |
+| **Cache** | Redis | Holds the hit counter and caches the `/history` response for 30 seconds to reduce load on the History API and database |
 | **Database** | PostgreSQL | Provides persistent relational data storage, accessed only by the History API |
 
 The Web API never touches Postgres directly, it calls the History API's internal REST endpoints (`POST /visits`, `GET /visits`). This is the actual service boundary in the stack: two services with their own codebases, dependencies, containers, and failure modes, communicating over the network rather than sharing a database.
@@ -31,7 +31,7 @@ The Web API never touches Postgres directly, it calls the History API's internal
 flowchart LR
     Client(["Client"]) --> Nginx["Nginx\nReverse Proxy"]
     Nginx --> Web["Web API\n(Flask)"]
-    Web --> Redis[("Redis\nhit counter")]
+    Web --> Redis[("Redis\nhit counter + history cache")]
     Web -- "POST /visits\nGET /visits" --> History["History API\n(Flask, internal only)"]
     History --> Postgres[("PostgreSQL\nvisit_history")]
 ```
@@ -40,7 +40,9 @@ flowchart LR
 *   **Containerised:** Fully isolated services deployed using Docker Compose or Kubernetes.
 *   **Deterministic Builds:** Exact dependencies locked via `pyproject.toml` and `uv.lock`.
 *   **Resilient Initialisation:** Custom health checks ensure the API waits for the database to be fully ready before booting.
+*   **Read Caching:** `/history` is served from Redis using a cache-aside pattern with a 30 second TTL, invalidated whenever a new visit is recorded.
 *   **Automated Testing:** Comprehensive Pytest suite utilising mocked database connections.
+*   **Linting:** Ruff runs alongside the test suite in GitHub Actions.
 
 ## Installation
 
@@ -97,7 +99,7 @@ kubectl port-forward service/nginx 8080:8080
 
 `GET /health` - System diagnostic endpoint ensuring the Web API is responsive.
 
-`GET /history` - Proxies the History API and returns the last 10 recorded visits.
+`GET /history` - Returns the last 10 recorded visits, from the Redis cache when available and the History API otherwise. The `X-Cache` response header reports `HIT` or `MISS`.
 
 ### History API (internal only)
 `GET /health` - System diagnostic endpoint ensuring the History API is responsive.
@@ -110,4 +112,8 @@ kubectl port-forward service/nginx 8080:8080
 To run the automated test suite locally using uv:
 ```bash
 uv run pytest
+```
+To lint the codebase:
+```bash
+uv run ruff check .
 ```
