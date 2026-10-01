@@ -72,6 +72,8 @@ To stop the application
 docker compose down
 ```
 ## Deploy with Kubernetes
+The manifests pull the Web API and History API images from GitHub Container Registry (`ghcr.io/furkan5e/scalable-microservices-web` and `ghcr.io/furkan5e/scalable-microservices-history`), which the Build Docker workflow publishes on every push to `master`. The images are public, so no local build or registry login is needed.
+
 Copy the secrets template and set your own credentials (`k8s/secrets.yaml` is gitignored, so real credentials never get committed):
 ```bash
 cp k8s/secrets.yaml.example k8s/secrets.yaml

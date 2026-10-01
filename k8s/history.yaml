@@ -13,8 +13,8 @@ spec:
     spec:
       containers:
       - name: history
-        image: scalable-microservices-stack-history:latest
-        imagePullPolicy: IfNotPresent
+        image: ghcr.io/furkan5e/scalable-microservices-history:latest
+        imagePullPolicy: Always # :latest is rebuilt by CI on every push to master
         ports:
         - containerPort: 5000
         envFrom:

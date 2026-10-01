@@ -13,8 +13,8 @@ spec:
     spec:
       containers:
       - name: web
-        image: scalable-microservices-stack-web:latest
-        imagePullPolicy: IfNotPresent
+        image: ghcr.io/furkan5e/scalable-microservices-web:latest
+        imagePullPolicy: Always # :latest is rebuilt by CI on every push to master
         ports:
         - containerPort: 5000
         env:
