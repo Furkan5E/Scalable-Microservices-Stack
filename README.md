@@ -38,6 +38,7 @@ flowchart LR
 
 ## Key Features
 *   **Containerised:** Fully isolated services deployed using Docker Compose or Kubernetes.
+*   **Horizontally Scalable:** The stateless Web API runs as 3 replicas on Kubernetes and autoscales to 6 under CPU load.
 *   **Deterministic Builds:** Exact dependencies locked via `pyproject.toml` and `uv.lock`.
 *   **Resilient Initialisation:** Custom health checks ensure the API waits for the database to be fully ready before booting.
 *   **Read Caching:** `/history` is served from Redis using a cache-aside pattern with a 30 second TTL, invalidated whenever a new visit is recorded.
@@ -88,12 +89,32 @@ kubectl apply -f k8s/redis.yaml
 kubectl apply -f k8s/history.yaml
 kubectl apply -f k8s/history-networkpolicy.yaml
 kubectl apply -f k8s/web.yaml
+kubectl apply -f k8s/web-hpa.yaml
 kubectl apply -f k8s/nginx.yaml
 ```
 If you are using a local kind cluster, open a tunnel to the reverse proxy.
 ```bash
 kubectl port-forward service/nginx 8080:8080
 ```
+## Scaling
+The Web API is stateless (the hit counter lives in Redis), so it scales horizontally. A HorizontalPodAutoscaler keeps a minimum of 3 web replicas and scales up to 6 when average CPU passes 70% of the request.
+
+Each response reports the pod that served it, so repeated requests show the load being spread while the Redis counter stays shared:
+```bash
+for i in 1 2 3 4 5 6; do curl -s localhost:8080/; echo; done
+```
+```
+{"db_status":"Recorded in Postgres","hostname":"web-5876c6c846-wj7q9","message":"Hello from the Scaled Full Stack!","redis_visits":10}
+{"db_status":"Recorded in Postgres","hostname":"web-5876c6c846-785p5","message":"Hello from the Scaled Full Stack!","redis_visits":11}
+{"db_status":"Recorded in Postgres","hostname":"web-5876c6c846-gqlfc","message":"Hello from the Scaled Full Stack!","redis_visits":12}
+```
+Scaling beyond the minimum needs the Kubernetes [metrics-server](https://github.com/kubernetes-sigs/metrics-server), which local clusters often do not ship with. Without it the stack still runs at 3 replicas. To watch the autoscaler react, generate load from inside the cluster:
+```bash
+kubectl run load --image=busybox:1.36 --restart=Never -- sh -c 'for j in 1 2 3 4 5 6 7 8; do (while true; do wget -q -O /dev/null http://web:5000/health; done) & done; sleep 150'
+kubectl get hpa web --watch
+kubectl delete pod load
+```
+
 ## API Endpoints
 
 ### Web API (public, via Nginx)
