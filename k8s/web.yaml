@@ -3,6 +3,7 @@ kind: Deployment
 metadata:
   name: web
 spec:
+  # No replicas field: the HorizontalPodAutoscaler in web-hpa.yaml owns the replica count
   selector:
     matchLabels:
       app: web
