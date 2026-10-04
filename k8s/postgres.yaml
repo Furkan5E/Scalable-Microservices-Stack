@@ -15,6 +15,8 @@ metadata:
   name: db
 spec:
   replicas: 1 # a ReadWriteOnce volume can only be mounted by one pod at a time
+  strategy:
+    type: Recreate # stop the old pod first so a rollout never waits on a volume it still holds
   selector:
     matchLabels:
       app: db
