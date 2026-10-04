@@ -25,7 +25,7 @@ The application is composed of two independently deployable Flask services plus 
 | **Cache** | Redis | Holds the hit counter and caches the `/history` response for 30 seconds to reduce load on the History API and database |
 | **Database** | PostgreSQL | Provides persistent relational data storage, accessed only by the History API |
 
-The Web API never touches Postgres directly, it calls the History API's internal REST endpoints (`POST /visits`, `GET /visits`). This is the actual service boundary in the stack: two services with their own codebases, dependencies, containers, and failure modes, communicating over the network rather than sharing a database.
+The Web API never touches Postgres directly, it calls the History API's internal REST endpoints (`POST /visits`, `GET /visits`). This is the actual service boundary in the stack: two services with their own codebases, dependencies, containers, and failure modes, communicating over the network rather than sharing a database. On Kubernetes the boundary is enforced by NetworkPolicies: only web pods can reach the History API, and only History pods can reach Postgres.
 
 ```mermaid
 flowchart LR
@@ -85,6 +85,7 @@ Apply the infrastructure manifests to local cluster
 kubectl apply -f k8s/secrets.yaml
 kubectl apply -f k8s/nginx-config.yaml
 kubectl apply -f k8s/postgres.yaml
+kubectl apply -f k8s/postgres-networkpolicy.yaml
 kubectl apply -f k8s/redis.yaml
 kubectl apply -f k8s/history.yaml
 kubectl apply -f k8s/history-networkpolicy.yaml

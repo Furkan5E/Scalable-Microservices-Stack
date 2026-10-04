@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: db-allow-history-only
+spec:
+  # Applies to the Postgres pod; once selected, any ingress not listed below is denied.
+  podSelector:
+    matchLabels:
+      app: db
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: history
+    ports:
+    - protocol: TCP
+      port: 5432
