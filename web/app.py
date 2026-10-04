@@ -1,5 +1,7 @@
 from flask import Flask, jsonify
 import redis
+from redis.backoff import NoBackoff
+from redis.retry import Retry
 import socket
 import requests
 from datetime import datetime
@@ -15,13 +17,24 @@ HISTORY_CACHE_KEY = 'history:latest'
 HISTORY_CACHE_TTL = 30
 
 def get_redis():
-    return redis.Redis(host=REDIS_HOST, port=6379)
+    # Short timeouts and no retries so a Redis outage fails fast instead of hanging the request
+    # (redis-py retries 10 times with exponential backoff by default)
+    return redis.Redis(
+        host=REDIS_HOST,
+        port=6379,
+        socket_connect_timeout=1,
+        socket_timeout=1,
+        retry=Retry(NoBackoff(), 0)
+    )
 
 @app.route('/')
 def index():
-    # 1. Increment Redis counter
+    # 1. Increment Redis counter; the visit is still served if Redis is down
     cache = get_redis()
-    hits = cache.incr('hits')
+    try:
+        hits = int(cache.incr('hits'))
+    except redis.RedisError:
+        hits = None
 
     # 2. Get local info
     hostname = socket.gethostname()
@@ -36,15 +49,19 @@ def index():
             timeout=3
         )
         response.raise_for_status()
-        # 4. Drop the cached history so the new visit shows up straight away
-        cache.delete(HISTORY_CACHE_KEY)
     except requests.RequestException:
         db_status = 'History service unavailable'
+    else:
+        # 4. Drop the cached history so the new visit shows up straight away
+        try:
+            cache.delete(HISTORY_CACHE_KEY)
+        except redis.RedisError:
+            pass
 
     return jsonify({
         'message': 'Hello from the Scaled Full Stack!',
         'hostname': hostname,
-        'redis_visits': int(hits),
+        'redis_visits': hits,
         'db_status': db_status
     })
 

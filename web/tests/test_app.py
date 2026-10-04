@@ -51,6 +51,23 @@ def test_index_reports_history_service_unavailable(client, mocker):
     mock_redis.delete.assert_not_called()
 
 
+def test_index_still_serves_when_redis_unavailable(client, mocker):
+    """Test that / records the visit and returns no hit count when Redis is down."""
+    mock_redis = mocker.MagicMock()
+    mock_redis.incr.side_effect = redis.RedisError('boom')
+    mock_redis.delete.side_effect = redis.RedisError('boom')
+    mocker.patch('app.get_redis', return_value=mock_redis)
+
+    mock_post = mocker.patch('app.requests.post')
+    mock_post.return_value.raise_for_status.return_value = None
+
+    response = client.get('/')
+    assert response.status_code == 200
+    assert response.json['redis_visits'] is None
+    assert response.json['db_status'] == 'Recorded in Postgres'
+    mock_post.assert_called_once()
+
+
 def test_history_cache_miss_fetches_and_caches(client, mocker):
     """Test that /history asks the history service on a cache miss and stores the result with a TTL."""
     mock_redis = mocker.MagicMock()

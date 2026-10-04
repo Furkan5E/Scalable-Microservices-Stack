@@ -118,7 +118,7 @@ kubectl delete pod load
 ## API Endpoints
 
 ### Web API (public, via Nginx)
-`GET /` - Root endpoint. Tracks your visit count in Redis and reports the visit to the History API for persistence.
+`GET /` - Root endpoint. Tracks your visit count in Redis and reports the visit to the History API for persistence. Still responds if either dependency is down: `redis_visits` is `null` when Redis is unreachable, and `db_status` reports when the History API is unavailable.
 
 `GET /health` - System diagnostic endpoint ensuring the Web API is responsive.
 
