@@ -2,7 +2,7 @@ from datetime import datetime
 
 import psycopg2
 import pytest
-from service import app
+from service import app, get_db_connection
 
 
 @pytest.fixture
@@ -59,6 +59,30 @@ def test_connection_closed_when_query_fails(client, mocker, method, kwargs):
     with pytest.raises(psycopg2.Error):
         getattr(client, method)('/visits', **kwargs)
     mock_conn.close.assert_called_once()
+
+
+def test_connection_fails_fast_by_default(mocker):
+    """Test that a request-path connection attempt is not retried when Postgres is down."""
+    mock_connect = mocker.patch('service.psycopg2.connect', side_effect=psycopg2.OperationalError('boom'))
+    mock_sleep = mocker.patch('service.time.sleep')
+
+    with pytest.raises(psycopg2.OperationalError):
+        get_db_connection()
+    mock_connect.assert_called_once()
+    mock_sleep.assert_not_called()
+
+
+def test_connection_retries_when_asked(mocker):
+    """Test that the startup path keeps retrying until Postgres accepts the connection."""
+    mock_conn = mocker.MagicMock()
+    mock_connect = mocker.patch(
+        'service.psycopg2.connect',
+        side_effect=[psycopg2.OperationalError('boom'), psycopg2.OperationalError('boom'), mock_conn]
+    )
+    mocker.patch('service.time.sleep')
+
+    assert get_db_connection(retries=5) is mock_conn
+    assert mock_connect.call_count == 3
 
 
 @pytest.mark.parametrize('payload', [

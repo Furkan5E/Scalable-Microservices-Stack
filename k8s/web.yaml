@@ -23,6 +23,9 @@ spec:
           value: "2.0"
         - name: HISTORY_SERVICE_URL
           value: "http://history:5000"
+        securityContext:
+          runAsNonRoot: true # the image runs as UID 10001; refuse to start if that ever changes
+          allowPrivilegeEscalation: false
         resources:
           requests:
             cpu: 50m
