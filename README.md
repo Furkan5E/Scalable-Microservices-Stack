@@ -10,6 +10,7 @@
 ![Nginx](https://img.shields.io/badge/Nginx-Proxy-009639?logo=nginx&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
 [![Test Suite](https://github.com/Furkan5E/scalable-microservices-stack/actions/workflows/test.yaml/badge.svg)](https://github.com/Furkan5E/scalable-microservices-stack/actions/workflows/test.yaml)
+[![End to End](https://github.com/Furkan5E/scalable-microservices-stack/actions/workflows/e2e.yaml/badge.svg)](https://github.com/Furkan5E/scalable-microservices-stack/actions/workflows/e2e.yaml)
 
 A containerised microservices architecture demonstrating service decomposition, inter-service communication, caching, persistent data storage, and strict dependency management.
 
@@ -140,4 +141,11 @@ uv run pytest
 To lint the codebase:
 ```bash
 uv run ruff check .
+```
+### End-to-end
+The End to End workflow builds both images from the commit, deploys the manifests to a throwaway [kind](https://kind.sigs.k8s.io/) cluster and runs `scripts/e2e.sh` against it. The script checks that the stack comes up with 3 web replicas, that a visit reaches Redis and Postgres, that `/history` goes from a cache miss to a cache hit, and that Postgres is unreachable from outside the History API.
+
+To run the same checks against a cluster you have already deployed to:
+```bash
+bash scripts/e2e.sh
 ```
