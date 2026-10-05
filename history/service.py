@@ -35,17 +35,19 @@ def get_db_connection():
 def init_db():
     """Creates the history table if it doesn't exist."""
     conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS visit_history (
-            id SERIAL PRIMARY KEY,
-            hostname VARCHAR(50),
-            visit_time TIMESTAMP
-        );
-    ''')
-    conn.commit()
-    cur.close()
-    conn.close()
+    try:
+        cur = conn.cursor()
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS visit_history (
+                id SERIAL PRIMARY KEY,
+                hostname VARCHAR(50),
+                visit_time TIMESTAMP
+            );
+        ''')
+        conn.commit()
+        cur.close()
+    finally:
+        conn.close()
 
 @app.route('/visits', methods=['POST'])
 def record_visit():
@@ -65,26 +67,31 @@ def record_visit():
     except ValueError:
         return jsonify({'error': 'timestamp must be an ISO 8601 string'}), 400
 
+    # Close the connection even if the insert fails, so errors don't leak connections
     conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute(
-        'INSERT INTO visit_history (hostname, visit_time) VALUES (%s, %s)',
-        (hostname, timestamp)
-    )
-    conn.commit()
-    cur.close()
-    conn.close()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            'INSERT INTO visit_history (hostname, visit_time) VALUES (%s, %s)',
+            (hostname, timestamp)
+        )
+        conn.commit()
+        cur.close()
+    finally:
+        conn.close()
     return jsonify({'status': 'recorded'}), 201
 
 @app.route('/visits')
 def list_visits():
     """Returns the last 10 visits stored in Postgres."""
     conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute('SELECT hostname, visit_time FROM visit_history ORDER BY visit_time DESC LIMIT 10;')
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    try:
+        cur = conn.cursor()
+        cur.execute('SELECT hostname, visit_time FROM visit_history ORDER BY visit_time DESC LIMIT 10;')
+        rows = cur.fetchall()
+        cur.close()
+    finally:
+        conn.close()
 
     visit_list = [
         {'hostname': r[0], 'timestamp': r[1].strftime('%Y-%m-%d %H:%M:%S')}
