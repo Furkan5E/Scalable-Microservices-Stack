@@ -97,7 +97,7 @@ cp k8s/secrets.yaml.example k8s/secrets.yaml
 Apply the infrastructure manifests to local cluster
 ```bash
 kubectl apply -f k8s/secrets.yaml
-kubectl apply -f k8s/nginx-config.yaml
+kubectl create configmap nginx-config --from-file=nginx/nginx.conf
 kubectl apply -f k8s/postgres.yaml
 kubectl apply -f k8s/postgres-networkpolicy.yaml
 kubectl apply -f k8s/redis.yaml
@@ -151,6 +151,7 @@ kubectl delete pod load
 *   **The History API owns Postgres.** Database failures and schema changes stay inside one service. When it is down, the Web API still answers and reports the problem in `db_status` instead of failing.
 *   **The cache is invalidated on write, with a TTL as a backstop.** A new visit shows up in `/history` straight away. The trade-off is that the cache only pays off when history is read more often than visits are recorded.
 *   **Database connections only retry at startup.** A request that cannot reach Postgres gives up after 2 seconds, and the History API runs threaded gunicorn workers, so an outage cannot fill every request slot, starve the health probe and get a healthy pod restarted.
+*   **One Nginx config for both platforms.** Docker Compose mounts `nginx/nginx.conf` and Kubernetes loads the same file into a ConfigMap, so the two deployments cannot drift apart.
 *   **The Redis client fails fast.** It uses 1 second timeouts and no retries, because a counter and a cache are not worth holding a request open for.
 *   **The web Deployment sets no replica count.** The HorizontalPodAutoscaler owns it, so re-applying the manifest never fights the autoscaler.
 *   **Postgres uses the `Recreate` strategy.** Its volume can only be mounted by one pod at a time, so the old pod has to stop before the new one starts.

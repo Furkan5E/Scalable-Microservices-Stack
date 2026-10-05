@@ -57,6 +57,7 @@ jobs:
         run: |
           cp k8s/secrets.yaml.example k8s/secrets.yaml
           kubectl apply -f k8s/secrets.yaml
+          kubectl create configmap nginx-config --from-file=nginx/nginx.conf
           for manifest in k8s/*.yaml; do
             sed -e 's|\(scalable-microservices-[a-z]*\):latest|\1:e2e|' \
                 -e 's|imagePullPolicy: Always.*|imagePullPolicy: Never|' "$manifest" | kubectl apply -f -
