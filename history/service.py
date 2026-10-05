@@ -14,16 +14,23 @@ DB_PASS = os.environ.get('POSTGRES_PASSWORD', 'password')
 
 MAX_HOSTNAME_LENGTH = 50
 
-def get_db_connection():
-    """Connects to Postgres with a simple retry loop in case the DB is still booting."""
-    retries = 5
+STARTUP_DB_RETRIES = 5
+DB_CONNECT_TIMEOUT = 2
+
+def get_db_connection(retries=0):
+    """Connects to Postgres, failing fast by default.
+
+    Requests use the default so a database outage frees the worker straight away instead of
+    holding it past the web service's timeout. Only startup passes retries, in case the DB is still booting.
+    """
     while True:
         try:
             conn = psycopg2.connect(
                 host=DB_HOST,
                 database=DB_NAME,
                 user=DB_USER,
-                password=DB_PASS
+                password=DB_PASS,
+                connect_timeout=DB_CONNECT_TIMEOUT
             )
             return conn
         except psycopg2.OperationalError as e:
@@ -34,7 +41,7 @@ def get_db_connection():
 
 def init_db():
     """Creates the history table if it doesn't exist."""
-    conn = get_db_connection()
+    conn = get_db_connection(retries=STARTUP_DB_RETRIES)
     try:
         cur = conn.cursor()
         cur.execute('''

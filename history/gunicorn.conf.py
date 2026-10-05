@@ -1,5 +1,10 @@
 bind = '0.0.0.0:5000'
 workers = 2
+# Threaded workers give 16 request slots, more than the 12 the web tier can open at once
+# (6 pods x 2 workers at the autoscaler's maximum). During a Postgres outage every /visits call
+# waits out its connect timeout, and with plain sync workers that starved /health and got
+# the pod restarted by its liveness probe.
+threads = 8
 
 
 def on_starting(server):

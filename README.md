@@ -9,8 +9,7 @@
 ![Redis](https://img.shields.io/badge/Redis-Cache-DC382D?logo=redis&logoColor=white)
 ![Nginx](https://img.shields.io/badge/Nginx-Proxy-009639?logo=nginx&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
-[![Test Suite](https://github.com/Furkan5E/scalable-microservices-stack/actions/workflows/test.yaml/badge.svg)](https://github.com/Furkan5E/scalable-microservices-stack/actions/workflows/test.yaml)
-[![End to End](https://github.com/Furkan5E/scalable-microservices-stack/actions/workflows/e2e.yaml/badge.svg)](https://github.com/Furkan5E/scalable-microservices-stack/actions/workflows/e2e.yaml)
+[![CI](https://github.com/Furkan5E/scalable-microservices-stack/actions/workflows/ci.yaml/badge.svg)](https://github.com/Furkan5E/scalable-microservices-stack/actions/workflows/ci.yaml)
 
 A containerised microservices stack that runs on Docker Compose or Kubernetes, where it autoscales, enforces its service boundary with NetworkPolicies, and keeps serving when a dependency goes down. It demonstrates service decomposition, inter-service communication, caching, persistent data storage, and strict dependency management.
 
@@ -48,6 +47,8 @@ flowchart LR
 *   **Automated Testing:** Pytest suite covering both services with mocked Redis, HTTP and database calls.
 *   **End-to-End CI:** Every push deploys the stack to a throwaway kind cluster and checks scaling, caching, persistence and the NetworkPolicy.
 *   **Linting:** Ruff runs alongside the test suite in GitHub Actions.
+*   **Gated Image Publishing:** Images are pushed to GitHub Container Registry only after the tests and end-to-end checks pass, tagged by commit SHA.
+*   **Non-Root Containers:** Both services run as an unprivileged user, and the Kubernetes manifests enforce it with `runAsNonRoot`.
 
 ## Prerequisites
 *   [Docker](https://docs.docker.com/get-docker/) with Docker Compose, to run the stack locally.
@@ -86,7 +87,7 @@ To stop the application
 docker compose down
 ```
 ## Deploy with Kubernetes
-The manifests pull the Web API and History API images from GitHub Container Registry (`ghcr.io/furkan5e/scalable-microservices-web` and `ghcr.io/furkan5e/scalable-microservices-history`), which the Build Docker workflow publishes on every push to `master`. The images are public, so no local build or registry login is needed.
+The manifests pull the Web API and History API images from GitHub Container Registry (`ghcr.io/furkan5e/scalable-microservices-web` and `ghcr.io/furkan5e/scalable-microservices-history`), which the CI workflow publishes on every push to `master`, but only after the unit tests and end-to-end checks pass. Each image is tagged `latest` and with its commit SHA, so a manifest can be pinned to an exact commit to roll back. The images are public, so no local build or registry login is needed.
 
 Copy the secrets template and set your own credentials (`k8s/secrets.yaml` is gitignored, so real credentials never get committed):
 ```bash
@@ -149,6 +150,7 @@ kubectl delete pod load
 ## Design Decisions
 *   **The History API owns Postgres.** Database failures and schema changes stay inside one service. When it is down, the Web API still answers and reports the problem in `db_status` instead of failing.
 *   **The cache is invalidated on write, with a TTL as a backstop.** A new visit shows up in `/history` straight away. The trade-off is that the cache only pays off when history is read more often than visits are recorded.
+*   **Database connections only retry at startup.** A request that cannot reach Postgres gives up after 2 seconds, and the History API runs threaded gunicorn workers, so an outage cannot fill every request slot, starve the health probe and get a healthy pod restarted.
 *   **The Redis client fails fast.** It uses 1 second timeouts and no retries, because a counter and a cache are not worth holding a request open for.
 *   **The web Deployment sets no replica count.** The HorizontalPodAutoscaler owns it, so re-applying the manifest never fights the autoscaler.
 *   **Postgres uses the `Recreate` strategy.** Its volume can only be mounted by one pod at a time, so the old pod has to stop before the new one starts.
@@ -164,7 +166,7 @@ To lint the codebase:
 uv run ruff check .
 ```
 ### End-to-end
-The End to End workflow builds both images from the commit, deploys the manifests to a throwaway [kind](https://kind.sigs.k8s.io/) cluster and runs `scripts/e2e.sh` against it. The script checks that the stack comes up with 3 web replicas, that a visit reaches Redis and Postgres, that `/history` goes from a cache miss to a cache hit, and that Postgres is unreachable from outside the History API.
+The `e2e` job of the CI workflow builds both images from the commit, deploys the manifests to a throwaway [kind](https://kind.sigs.k8s.io/) cluster and runs `scripts/e2e.sh` against it. The script checks that the stack comes up with 3 web replicas, that a visit reaches Redis and Postgres, that `/history` goes from a cache miss to a cache hit, and that Postgres is unreachable from outside the History API.
 
 To run the same checks against a cluster you have already deployed to:
 ```bash

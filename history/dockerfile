@@ -12,6 +12,11 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 COPY history/ ./
 
+# Run as an unprivileged user; the numeric UID lets Kubernetes verify runAsNonRoot.
+# gunicorn keeps its control socket in the home directory, so the user needs one.
+RUN useradd --system --uid 10001 --create-home appuser
+USER 10001
+
 EXPOSE 5000
 
 CMD ["gunicorn", "service:app"]

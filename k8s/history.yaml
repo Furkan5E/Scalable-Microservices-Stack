@@ -20,6 +20,9 @@ spec:
         envFrom:
         - secretRef:
             name: db-secrets
+        securityContext:
+          runAsNonRoot: true # the image runs as UID 10001; refuse to start if that ever changes
+          allowPrivilegeEscalation: false
         resources:
           requests:
             cpu: 50m
