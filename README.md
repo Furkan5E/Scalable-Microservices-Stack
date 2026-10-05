@@ -12,7 +12,7 @@
 [![Test Suite](https://github.com/Furkan5E/scalable-microservices-stack/actions/workflows/test.yaml/badge.svg)](https://github.com/Furkan5E/scalable-microservices-stack/actions/workflows/test.yaml)
 [![End to End](https://github.com/Furkan5E/scalable-microservices-stack/actions/workflows/e2e.yaml/badge.svg)](https://github.com/Furkan5E/scalable-microservices-stack/actions/workflows/e2e.yaml)
 
-A containerised microservices architecture demonstrating service decomposition, inter-service communication, caching, persistent data storage, and strict dependency management.
+A containerised microservices stack that runs on Docker Compose or Kubernetes, where it autoscales, enforces its service boundary with NetworkPolicies, and keeps serving when a dependency goes down. It demonstrates service decomposition, inter-service communication, caching, persistent data storage, and strict dependency management.
 
 ## Architecture
 
@@ -26,7 +26,7 @@ The application is composed of two independently deployable Flask services plus 
 | **Cache** | Redis | Holds the hit counter and caches the `/history` response for 30 seconds to reduce load on the History API and database |
 | **Database** | PostgreSQL | Provides persistent relational data storage, accessed only by the History API |
 
-The Web API never touches Postgres directly, it calls the History API's internal REST endpoints (`POST /visits`, `GET /visits`). This is the actual service boundary in the stack: two services with their own codebases, dependencies, containers, and failure modes, communicating over the network rather than sharing a database. On Kubernetes the boundary is enforced by NetworkPolicies: only web pods can reach the History API, and only History pods can reach Postgres.
+The Web API never touches Postgres directly. Instead it calls the History API's internal REST endpoints (`POST /visits`, `GET /visits`). This is the actual service boundary in the stack: two services with their own codebases, dependencies, containers, and failure modes, communicating over the network rather than sharing a database. On Kubernetes the boundary is enforced by NetworkPolicies: only web pods can reach the History API, and only History pods can reach Postgres.
 
 ```mermaid
 flowchart LR
@@ -43,23 +43,30 @@ flowchart LR
 *   **Deterministic Builds:** Exact dependencies locked via `pyproject.toml` and `uv.lock`.
 *   **Resilient Initialisation:** Custom health checks ensure the API waits for the database to be fully ready before booting.
 *   **Read Caching:** `/history` is served from Redis using a cache-aside pattern with a 30 second TTL, invalidated whenever a new visit is recorded.
-*   **Automated Testing:** Comprehensive Pytest suite utilising mocked database connections.
+*   **Graceful Degradation:** The Web API keeps responding when Redis or the History API is down, with fail-fast timeouts so an outage never hangs a request.
+*   **Enforced Service Boundary:** Kubernetes NetworkPolicies allow only web pods to reach the History API, and only History pods to reach Postgres.
+*   **Automated Testing:** Pytest suite covering both services with mocked Redis, HTTP and database calls.
+*   **End-to-End CI:** Every push deploys the stack to a throwaway kind cluster and checks scaling, caching, persistence and the NetworkPolicy.
 *   **Linting:** Ruff runs alongside the test suite in GitHub Actions.
 
-## Installation
+## Prerequisites
+*   [Docker](https://docs.docker.com/get-docker/) with Docker Compose, to run the stack locally.
+*   [kubectl](https://kubernetes.io/docs/tasks/tools/) and a Kubernetes cluster (Docker Desktop, kind or similar), for the Kubernetes deployment.
+*   [uv](https://docs.astral.sh/uv/), only needed to run the tests and linter.
 
-**1. Clone the repository and install dependencies**
+## Run with Docker Compose
+
+**1. Clone the repository**
 ```bash
 git clone https://github.com/Furkan5E/scalable-microservices-stack.git
 cd scalable-microservices-stack
-uv sync
 ```
-**2. Create a .env file in the root directory and add your secure credentials:**
+**2. Create a .env file from the template and set your own password:**
+```bash
+cp .env.example .env
+# edit .env with your own POSTGRES_PASSWORD
 ```
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=your_secure_password
-```
-**3. Launch the Cluster**
+**3. Launch the stack**
 
 Build and start all services in the background:
 ```bash
@@ -68,6 +75,11 @@ docker compose up --build -d
 Check the running containers:
 ```bash
 docker compose ps
+```
+The API is then available through Nginx at `http://localhost:8080`:
+```bash
+curl localhost:8080/
+curl localhost:8080/history
 ```
 To stop the application
 ```bash
@@ -94,21 +106,22 @@ kubectl apply -f k8s/web.yaml
 kubectl apply -f k8s/web-hpa.yaml
 kubectl apply -f k8s/nginx.yaml
 ```
-If you are using a local kind cluster, open a tunnel to the reverse proxy.
+On a local cluster, open a tunnel to the reverse proxy:
 ```bash
 kubectl port-forward service/nginx 8080:8080
 ```
+The API is then available at `http://localhost:8080`, with the same endpoints as the Docker Compose setup.
 ## Scaling
 The Web API is stateless (the hit counter lives in Redis), so it scales horizontally. A HorizontalPodAutoscaler keeps a minimum of 3 web replicas and scales up to 6 when average CPU passes 70% of the request.
 
 Each response reports the pod that served it, so repeated requests show the load being spread while the Redis counter stays shared:
 ```bash
-for i in 1 2 3 4 5 6; do curl -s localhost:8080/; echo; done
+for i in 1 2 3; do curl -s localhost:8080/; echo; done
 ```
 ```
-{"db_status":"Recorded in Postgres","hostname":"web-5876c6c846-wj7q9","message":"Hello from the Scaled Full Stack!","redis_visits":10}
-{"db_status":"Recorded in Postgres","hostname":"web-5876c6c846-785p5","message":"Hello from the Scaled Full Stack!","redis_visits":11}
-{"db_status":"Recorded in Postgres","hostname":"web-5876c6c846-gqlfc","message":"Hello from the Scaled Full Stack!","redis_visits":12}
+{"db_status":"Recorded in Postgres","hostname":"web-5876c6c846-wj7q9","message":"Hello from the Scaled Full Stack!","redis_visits":7}
+{"db_status":"Recorded in Postgres","hostname":"web-5876c6c846-785p5","message":"Hello from the Scaled Full Stack!","redis_visits":8}
+{"db_status":"Recorded in Postgres","hostname":"web-5876c6c846-gqlfc","message":"Hello from the Scaled Full Stack!","redis_visits":9}
 ```
 Scaling beyond the minimum needs the Kubernetes [metrics-server](https://github.com/kubernetes-sigs/metrics-server), which local clusters often do not ship with. Without it the stack still runs at 3 replicas. To watch the autoscaler react, generate load from inside the cluster:
 ```bash
@@ -133,9 +146,17 @@ kubectl delete pod load
 
 `GET /visits` - Returns the last 10 visits stored in PostgreSQL.
 
+## Design Decisions
+*   **The History API owns Postgres.** Database failures and schema changes stay inside one service. When it is down, the Web API still answers and reports the problem in `db_status` instead of failing.
+*   **The cache is invalidated on write, with a TTL as a backstop.** A new visit shows up in `/history` straight away. The trade-off is that the cache only pays off when history is read more often than visits are recorded.
+*   **The Redis client fails fast.** It uses 1 second timeouts and no retries, because a counter and a cache are not worth holding a request open for.
+*   **The web Deployment sets no replica count.** The HorizontalPodAutoscaler owns it, so re-applying the manifest never fights the autoscaler.
+*   **Postgres uses the `Recreate` strategy.** Its volume can only be mounted by one pod at a time, so the old pod has to stop before the new one starts.
+
 ## Testing
-To run the automated test suite locally using uv:
+Install the dependencies and run the automated test suite locally using uv:
 ```bash
+uv sync
 uv run pytest
 ```
 To lint the codebase:
