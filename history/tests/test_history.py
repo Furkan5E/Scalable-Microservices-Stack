@@ -1,5 +1,6 @@
 from datetime import datetime
 
+import psycopg2
 import pytest
 from service import app
 
@@ -40,6 +41,24 @@ def test_record_visit(client, mocker):
     response = client.post('/visits', json={'hostname': 'test_host', 'timestamp': '2026-08-21T21:00:00'})
     assert response.status_code == 201
     mock_cursor.execute.assert_called_once()
+    mock_conn.close.assert_called_once()
+
+
+@pytest.mark.parametrize('method, kwargs', [
+    ('post', {'json': {'hostname': 'test_host', 'timestamp': '2026-08-21T21:00:00'}}),
+    ('get', {}),
+])
+def test_connection_closed_when_query_fails(client, mocker, method, kwargs):
+    """Test that /visits closes its database connection even when the query raises."""
+    mock_cursor = mocker.MagicMock()
+    mock_cursor.execute.side_effect = psycopg2.Error('boom')
+    mock_conn = mocker.MagicMock()
+    mock_conn.cursor.return_value = mock_cursor
+    mocker.patch('service.get_db_connection', return_value=mock_conn)
+
+    with pytest.raises(psycopg2.Error):
+        getattr(client, method)('/visits', **kwargs)
+    mock_conn.close.assert_called_once()
 
 
 @pytest.mark.parametrize('payload', [
